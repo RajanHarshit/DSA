@@ -1,0 +1,56 @@
+package main
+
+import (
+	"fmt"
+)
+
+// concreate implementation : or Class
+type IntConfig struct {
+	value int
+}
+
+func (c IntConfig) Get() int {
+	return c.value
+}
+
+func (c *IntConfig) Set(value int) {
+	c.value = value
+}
+
+// Read-Only interface (restrict behavior)
+type intConfigGetter interface {
+	Get() int
+}
+
+// Foo struct depends on READ capabilities
+type Foo struct {
+	threshold intConfigGetter
+}
+
+// constructor : dependency injection
+func NewFoo(threshold intConfigGetter) *Foo {
+	return &Foo{
+		threshold: threshold,
+	}
+}
+
+func (f *Foo) Bar() {
+	val := f.threshold.Get()
+	fmt.Println("Threshold inside Foo:", val)
+
+	//f.threshold.Set(100)
+}
+
+func main() {
+	fmt.Println("Hello, World!")
+	config := &IntConfig{value: 10}
+	foo := NewFoo(config)
+	fmt.Println("Initial value:")
+	foo.Bar()
+
+	fmt.Println("\nUpdating config outside Foo...")
+	config.Set(20)
+
+	fmt.Println("After update:")
+	foo.Bar()
+}

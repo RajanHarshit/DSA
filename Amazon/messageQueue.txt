@@ -1,0 +1,91 @@
+package main
+
+import (
+	"fmt"
+	"sync"
+)
+
+type Message struct {
+	ID      int
+	Payload string
+}
+type MessageQueue struct {
+	queue  []Message
+	lock   sync.Mutex
+	cond   *sync.Cond
+	closed bool
+}
+
+func NewMessageQueue() *MessageQueue {
+	mq := &MessageQueue{}
+	mq.cond = sync.NewCond(&mq.lock)
+	return mq
+}
+
+// Producer
+func (mq *MessageQueue) Publish(msg Message) {
+	mq.lock.Lock()
+	defer mq.lock.Unlock()
+
+	if mq.closed {
+		return
+	}
+
+	mq.queue = append(mq.queue, msg)
+	mq.cond.Signal()
+}
+
+// Consumer
+func (mq *MessageQueue) Consume() (Message, bool) {
+	mq.lock.Lock()
+	defer mq.lock.Unlock()
+	for len(mq.queue) == 0 && !mq.closed {
+		mq.cond.Wait()
+	}
+
+	if len(mq.queue) == 0 {
+		return Message{}, false
+	}
+
+	msg := mq.queue[0]
+	mq.queue = mq.queue[1:]
+
+	return msg, true
+}
+
+func (mq *MessageQueue) Close() {
+	mq.lock.Lock()
+	defer mq.lock.Unlock()
+	mq.closed = true
+	mq.cond.Broadcast()
+}
+
+func producer(mq *MessageQueue) {
+	for i := 1; i <= 5; i++ {
+		msg := Message{
+			ID:      i,
+			Payload: fmt.Sprintf("Message %d", i),
+		}
+
+		fmt.Println("Produced:", msg.Payload)
+		mq.Publish(msg)
+	}
+	mq.Close()
+}
+
+func consumer(mq *MessageQueue) {
+	for {
+		msg, ok := mq.Consume()
+		if !ok {
+			return
+		}
+		fmt.Println("Consumed:", msg.Payload)
+	}
+}
+
+func main() {
+	fmt.Println("Hello, World!")
+	mq := NewMessageQueue()
+	go producer(mq)
+	consumer(mq)
+}

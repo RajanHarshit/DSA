@@ -1,0 +1,48 @@
+5️⃣ 🌐 API Client (Public vs Admin API)
+👉 Goal
+Public API → limited access
+Internal API → full access
+
+package main
+
+import "fmt"
+
+// Full API client
+type APIClient struct{}
+
+func (a *APIClient) GetUser() string {
+	return "Harshit"
+}
+func (a *APIClient) DeleteUser() {
+	fmt.Println("User Deleted")
+}
+
+// Public interface
+type PublicAPI interface {
+	GetUser() string
+}
+
+// Admin interface
+type AdminAPI interface {
+	DeleteUser()
+}
+
+// Public Service
+type Frontend struct {
+	api PublicAPI
+}
+
+func NewFrontend(api PublicAPI) *Frontend {
+	return &Frontend{
+		api: api,
+	}
+}
+func (f *Frontend) ShowUser() {
+	fmt.Println("User:", f.api.GetUser())
+}
+
+func main() {
+	client := &APIClient{}
+	service := NewFrontend(client)
+	service.ShowUser()
+}

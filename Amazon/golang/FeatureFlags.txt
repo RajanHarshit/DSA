@@ -1,0 +1,62 @@
+👉 Goal
+Feature system controls flags
+App only reads them
+
+💡 Prod Insight
+Used in: LaunchDarkly, ConfigCat
+Services NEVER modify flags → only read
+
+package main
+
+import "fmt"
+
+// Full Feature Flag system
+type FeatureFlag struct {
+	flags map[string]bool
+}
+
+func (ff *FeatureFlag) IsEnabled(name string) bool {
+	return ff.flags[name]
+}
+func (ff *FeatureFlag) SetFlag(name string, val bool) {
+	ff.flags[name] = val
+}
+
+// Read-only interface
+type FeatureChecker interface {
+	IsEnabled(string) bool
+}
+
+// Business Service layer
+type PaymentService struct {
+	features FeatureChecker
+}
+
+func NewPaymentService(fc FeatureChecker) *PaymentService {
+	return &PaymentService{
+		features: fc,
+	}
+}
+
+func (ps *PaymentService) Pay() {
+	if ps.features.IsEnabled("new-payment-flow") {
+		fmt.Println("Using NEW payment flow")
+	} else {
+		fmt.Println("Using OLD payment flow")
+	}
+}
+
+func main() {
+	ff := &FeatureFlag{
+		flags: map[string]bool{
+			"new-payment-flow": false,
+		},
+	}
+	service := NewPaymentService(ff)
+	service.Pay()
+
+	// Toggle feature
+	ff.SetFlag("new-payment-flow", true)
+
+	service.Pay()
+}

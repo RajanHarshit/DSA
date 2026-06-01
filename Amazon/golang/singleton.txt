@@ -1,0 +1,39 @@
+package main
+
+import (
+	"fmt"
+	"sync"
+)
+
+type ConfigurationManager struct {
+	config map[string]string
+}
+
+var (
+	instance *ConfigurationManager
+	once     sync.Once
+)
+
+func GetInstance() *ConfigurationManager {
+	once.Do(func() {
+		instance = &ConfigurationManager{
+			config: map[string]string{
+				"db_host": "localhost",
+				"db_port": "5432",
+			},
+		}
+		fmt.Println("ConfigurationManager initialized")
+	})
+	return instance
+}
+
+func (c *ConfigurationManager) Get(key string) string {
+	return c.config[key]
+}
+
+func main() {
+	c1 := GetInstance()
+	c2 := GetInstance()
+	fmt.Println(c1 == c2)
+	fmt.Println(c1.Get("db_host"))
+}

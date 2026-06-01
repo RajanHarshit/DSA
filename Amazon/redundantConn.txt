@@ -1,0 +1,36 @@
+func findRedundantConnection(edges [][]int) []int {
+    // create parent array : DSU
+    parent := make([]int, len(edges)+1)
+
+    // intialize parent array
+    for i:=1; i<=len(edges); i++ {
+        parent[i] = i
+    }
+
+    var find func(int)int
+    find = func(x int) int {
+        if parent[x] != x {
+            parent[x] = find(parent[x])
+        }
+        return parent[x]
+    }
+
+    union := func(x,y int) bool {
+        px := find(x)
+        py := find(y)
+        if px == py {
+            return false  // means same parent, cycle detected
+        }
+        parent[px]=py  // linking node
+        return true
+    }
+
+    result := []int{}
+    for _,edge := range edges {
+        if !union(edge[0], edge[1]) {
+            result = edge
+        }
+    }
+
+    return result
+}

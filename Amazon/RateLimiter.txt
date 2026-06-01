@@ -1,0 +1,65 @@
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+type TokenBucket struct {
+	capacity   int
+	tokens     int
+	refillRate int
+	lastRefill time.Time
+	mutex      sync.Mutex
+}
+
+func NewTokenBucket(capacity, refillRate int) *TokenBucket {
+	return &TokenBucket{
+		capacity:   capacity,
+		tokens:     capacity,
+		refillRate: refillRate,
+		lastRefill: time.Now(),
+	}
+}
+
+func (tb *TokenBucket) AllowRequest() bool {
+	tb.mutex.Lock()
+	defer tb.mutex.Unlock()
+	now := time.Now()
+	elapsed := now.Sub(tb.lastRefill).Seconds()
+	refill := int(elapsed) * tb.refillRate
+	if refill > 0 {
+		tb.tokens = min(tb.capacity, tb.tokens+refill)
+		tb.lastRefill = now
+	}
+
+	if tb.tokens > 0 {
+		tb.tokens--
+		return true
+	}
+	return false
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func main() {
+	fmt.Println("Hello, World!")
+
+	limiter := NewTokenBucket(5, 1)
+	for i := 0; i < 10; i++ {
+
+		if limiter.AllowRequest() {
+			fmt.Println("Request allowed")
+		} else {
+			fmt.Println("Rate limit exceeded")
+		}
+
+		time.Sleep(300 * time.Millisecond)
+	}
+}

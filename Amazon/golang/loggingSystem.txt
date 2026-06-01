@@ -1,0 +1,48 @@
+👉 Goal
+App should log messages
+Should NOT read logs or modify logger internals
+
+💡 Prod Insight
+Prevents app from changing log level dynamically
+Only infra layer controls logger config
+
+
+package main
+
+import "fmt"
+
+// Full Logger
+type Logger struct{}
+
+func (l *Logger) Log(msg string) {
+	fmt.Println("LOG : ", msg)
+}
+func (l *Logger) SetLevel(level string) {
+	fmt.Println("Setting level:", level)
+}
+
+// Write-only interface
+type LogWriter interface {
+	Log(string)
+}
+
+// App depends only on LogWriter
+type App struct {
+	logger LogWriter
+}
+
+func NewApp(l LogWriter) *App {
+	return &App{
+		logger: l,
+	}
+}
+
+func (a *App) Process() {
+	a.logger.Log("Processing started")
+
+}
+func main() {
+	logger := &Logger{}
+	app := NewApp(logger)
+	app.Process()
+}

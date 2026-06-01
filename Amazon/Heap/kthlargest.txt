@@ -1,0 +1,103 @@
+// NOTE ---
+kth largest = (n - k)th smallest
+/////////////////////
+
+
+package main
+
+import (
+	"fmt"
+)
+
+func quickSelect(nums []int, left, right, k int) int {
+	/*
+	   1. select left most as pivot element
+	   2. partition array like [number > pivot | pivot | number < pivot]
+	   3. if p==k -> return nums[p]
+	   4. if p > k -> search in left part
+	   5. else if p < k -> search in right part
+	*/
+	pivot := nums[right]
+	p := left
+
+	// partition: smaller elements to left
+	for i := left; i < right; i++ {
+		if nums[i] < pivot {
+			nums[i], nums[p] = nums[p], nums[i]
+			p++
+		}
+	}
+
+	// place pivot in correct position
+	nums[p], nums[right] = nums[right], nums[p]
+
+	if p == k {
+		return nums[p]
+	} else if p > k {
+		return quickSelect(nums, left, p-1, k)
+	} else {
+		return quickSelect(nums, p+1, right, k)
+	}
+}
+func KthLargest(nums []int, k int) int {
+	n := len(nums)
+	return quickSelect(nums, 0, n-1, n-k)
+}
+
+func main() {
+	fmt.Println("Hello, World!")
+	arr := []int{7, 10, 4, 3, 20, 15}
+	k := 3
+	fmt.Println(KthLargest(arr, k))
+}
+
+///////////////////////////////////////// HEAP - O(nlogk) ////////////////////////////////////
+
+package main
+
+import (
+	"container/heap"
+	"fmt"
+)
+
+type MinHeap []int
+
+func (h MinHeap) Len() int {
+	return len(h)
+}
+func (h MinHeap) Less(i, j int) bool {
+	return h[i] < h[j]
+}
+func (h MinHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+func (h *MinHeap) Push(x interface{}) {
+	*h = append(*h, x.(int))
+}
+func (h *MinHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	val := old[n-1]
+	*h = old[:n-1]
+	return val
+}
+
+func KthLargest(nums []int, k int) int {
+	h := &MinHeap{}
+	heap.Init(h)
+	for _, num := range nums {
+		heap.Push(h, num)
+		if h.Len() > k {
+			heap.Pop(h)
+		}
+	}
+	return (*h)[0]
+}
+
+func main() {
+	fmt.Println("Hello, World!")
+	arr := []int{7, 10, 4, 3, 20, 15}
+	k := 3
+	fmt.Println(KthLargest(arr, k))
+}
+

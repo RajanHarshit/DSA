@@ -1,0 +1,248 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+// ==========================
+// Generic Cache Interface
+// ==========================
+type Cache[T any] interface {
+	Get(ctx context.Context, key string) (T, bool)
+	Set(ctx context.Context, key string, value T, ttl time.Duration)
+	Delete(ctx context.Context, key string)
+}
+
+// ==========================
+// Cache Item
+// ==========================
+type item[T any] struct {
+	value     T
+	expiresAt time.Time
+}
+
+// ==========================
+// In-Memory Cache (Thread-safe)
+// ==========================
+type InMemoryCache[T any] struct {
+	mu    sync.RWMutex
+	store map[int]item[T]
+}
+
+func NewInMemoryCache[T any]() *InMemoryCache[T] {
+	c := &InMemoryCache[T]{
+		store: make(map[int]item[T]),
+	}
+
+	// start background cleanup
+	go c.startCleanup()
+	return c
+}
+
+// ==========================
+// Background Cleanup (TTL)
+// ==========================
+
+func (in *InMemoryCache[T]) startCleanup() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		in.cleanup()
+	}
+}
+
+func (in *InMemoryCache[T]) cleanup() {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	now := time.Now()
+	for k, v := range in.store {
+		if !v.expiresAt.IsZero() && now.After(v.expiresAt) {
+			delete(in.store, k)
+		}
+	}
+}
+
+func (in *InMemoryCache[T]) Get(ctx context.Context, key string) (T, bool) {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+
+	it, ok := in.store[key]
+	if !ok {
+		var zero T
+		return zero, false
+	}
+	// Check expiration
+	if !it.expiresAt.IsZero() && time.Now().After(it.expiresAt) {
+		var zero T
+		return zero, false
+	}
+
+	return it.value, true
+}
+
+func (in *InMemoryCache[T]) Set(ctx context.Context, key string, value T, ttl time.Duration) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	var exp time.Time
+	if ttl > 0 {
+		exp = time.Now().Add(ttl)
+	}
+	it.store[key] = item[T]{
+		value:     value,
+		expiresAt: exp,
+	}
+}
+
+func (in *InMemoryCache[T]) Delete(ctx context.Context, key string) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	delete(in.store, key)
+}
+
+// ==========================
+// Decorator: Metrics Layer (Prometheus)
+// ==========================
+
+type MetricsCache[T any] struct {
+	next      Cache[T]
+	getHits   prometheus.Counter
+	getMisses prometheus.Counter
+	setOps    prometheus.Counter
+	deleteOps prometheus.Counter
+	latency   prometheus.Histogram
+}
+
+func NewMetricsCache[T any](next Cache[T]) *MetricsCache[T] {
+	m := &MetricsCache[T]{
+		next: next,
+		getHits: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "cache_get_hits_total",
+			Help: "Total cache hits",
+		}),
+		getMisses: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "cache_get_misses_total",
+			Help: "Total cache misses",
+		}),
+		setOps: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "cache_set_total",
+			Help: "Total cache set operations",
+		}),
+		deleteOps: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "cache_delete_total",
+			Help: "Total cache delete operations",
+		}),
+		latency: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "cache_latency_seconds",
+			Help:    "Cache operation latency",
+			Buckets: prometheus.DefBuckets,
+		}),
+	}
+	prometheus.MustRegister(m.getHits, m.getMisses, m.setOps, m.deleteOps, m.latency)
+	return m
+}
+
+func (m *MetricsCache[T]) Get(ctx context.Context, key string) (T, bool) {
+	start := time.Now()
+	val, ok := m.next.Get(ctx, key)
+	m.latency.Observe(time.Since(start).Seconds())
+	if ok {
+		m.getHits.Inc()
+	} else {
+		m.getMisses.Inc()
+	}
+	return val, ok
+}
+
+func (m *MetricsCache[T]) Set(ctx context.Context, key string, value T, ttl time.Duration) {
+	start := time.Now()
+	m.next.Set(ctx, key, value, ttl)
+	m.latency.Observe(time.Since(start).Seconds())
+	m.setOps.Inc()
+}
+
+func (m *MetricsCache[T]) Delete(ctx context.Context, key string) {
+	start := time.Now()
+	m.next.Delete(ctx, key)
+	m.latency.Observe(time.Since(start).Seconds())
+	m.deleteOps.Inc()
+}
+
+// ==========================
+// Decorator: Logging Layer
+// ==========================
+type LoggingCache [T]struct {
+	next Cache[T]
+}
+
+func NewLoggingCache[T any](next Cache[T]) *LoggingCache[T] {
+	return &LoggingCache[T]{
+		next: next,
+	}
+}
+func (l *LoggingCache[T]) Get(ctx context.Context, key string) (T, bool) {
+	val, ok := l.next.Get(ctx, key)
+	fmt.Println("GET", key, "found:", ok)
+	return val, ok
+}
+
+func (l *LoggingCache[T]) Set(ctx context.Context, key string, value T, ttl time.Duration) {
+	fmt.Println("SET", key)
+	l.next.Set(ctx, key, value, ttl)
+}
+
+func (l *LoggingCache[T]) Delete(ctx context.Context, key string) {
+	fmt.Println("DELETE", key)
+	l.next.Delete(ctx, key)
+}
+
+// ==========================
+// Example Domain Object
+// ==========================
+
+type User struct {
+	ID   int
+	Name string
+}
+
+func main() {
+
+	// start prometheus server
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		fmt.Println("Prometheus metrics available at :2112/metrics")
+		http.ListenAndServe(":2112", nil)
+	}()
+	ctx := context.Background()
+
+	// Create base cache
+	baseCache := NewInMemoryCache[User]()
+
+	// Add metrics + logging decorators (stacked)
+	metricsCache := NewMetricsCache[User](baseCache)
+	cache := NewLoggingCache[User](metricsCache)
+
+	// Set value
+	cache.Set(ctx, "user:1", User{ID: 1, Name: "Harshit"}, 3*time.Second)
+
+	// Get value
+	user, ok := cache.Get(ctx, "user:1")
+	fmt.Println("User:", user, "Exists:", ok)
+
+	// Wait for expiration
+	time.Sleep(4 * time.Second)
+
+	// Try again
+	user, ok = cache.Get(ctx, "user:1")
+	fmt.Println("After TTL -> Exists:", ok)
+}

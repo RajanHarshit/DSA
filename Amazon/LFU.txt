@@ -1,0 +1,144 @@
+package main
+import "fmt"
+
+type Node struct {
+    key, val, freq int
+    prev, next *Node
+}
+
+type DoublyList struct {
+    head, tail *Node
+}
+
+func NewList() *DoublyList {
+    head := &Node{}
+    tail := &Node{}
+    head.next = tail
+    tail.prev = head
+    return &DoublyList{head, tail}
+}
+
+func (l *DoublyList) add(node *Node) {
+    node.next = l.head.next
+    node.prev = l.head
+    l.head.next.prev = node
+    l.head.next = node
+}
+
+func (l *DoublyList) remove(node *Node) {
+    node.prev.next = node.next
+    node.next.prev = node.prev
+}
+
+func (l *DoublyList) removeLast() *Node {
+    if l.head.next == l.tail {
+        return nil
+    }
+    last := l.tail.prev
+    l.remove(last)
+    return last
+}
+
+func (l *DoublyList) isEmpty() bool {
+    return l.head.next == l.tail
+}
+
+type LFUCache struct {
+    capacity int
+    minFreq int
+    cache map[int]*Node
+    freqMap map[int]*DoublyList
+}
+
+func Constructor(capacity int) LFUCache {
+    return LFUCache{
+        capacity: capacity,
+        cache: make(map[int]*Node),
+        freqMap: make(map[int]*DoublyList),
+    }
+}
+
+func (this *LFUCache) update(node *Node) {
+    freq := node.freq
+    list := this.freqMap[freq]
+    list.remove(node)
+
+    if freq == this.minFreq && list.isEmpty() {
+        this.minFreq++
+    }
+
+    node.freq++
+
+    if this.freqMap[node.freq] == nil {
+        this.freqMap[node.freq] = NewList()
+    }
+
+    this.freqMap[node.freq].add(node)
+}
+
+func (this *LFUCache) Get(key int) int {
+    node, ok := this.cache[key]
+    if !ok {
+        return -1
+    }
+
+    this.update(node)
+    return node.val
+}
+
+func (this *LFUCache) Put(key int, value int) {
+
+    if this.capacity == 0 {
+        return
+    }
+
+    if node, ok := this.cache[key]; ok {
+        node.val = value
+        this.update(node)
+        return
+    }
+
+    if len(this.cache) == this.capacity {
+
+        list := this.freqMap[this.minFreq]
+        node := list.removeLast()
+
+        delete(this.cache, node.key)
+    }
+
+    newNode := &Node{
+        key: key,
+        val: value,
+        freq: 1,
+    }
+
+    if this.freqMap[1] == nil {
+        this.freqMap[1] = NewList()
+    }
+
+    this.freqMap[1].add(newNode)
+
+    this.cache[key] = newNode
+    this.minFreq = 1
+}
+
+func main() {
+
+    lfu := Constructor(2)
+
+    lfu.Put(1,1)
+    lfu.Put(2,2)
+
+    fmt.Println(lfu.Get(1)) // 1
+
+    lfu.Put(3,3)
+
+    fmt.Println(lfu.Get(2)) // -1
+    fmt.Println(lfu.Get(3)) // 3
+
+    lfu.Put(4,4)
+
+    fmt.Println(lfu.Get(1)) // -1
+    fmt.Println(lfu.Get(3)) // 3
+    fmt.Println(lfu.Get(4)) // 4
+}

@@ -1,0 +1,162 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+)
+
+// ==========================
+// Generic Cache Interface
+// ==========================
+type Cache[T any] interface {
+	Get(ctx context.Context, key string) (T, bool)
+	Set(ctx context.Context, key string, value T, ttl time.Duration)
+	Delete(ctx context.Context, key string)
+}
+
+// ==========================
+// Cache Item
+// ==========================
+
+type item[T any] struct {
+	value     T
+	expiresAt time.Time
+}
+
+// ==========================
+// In-Memory Cache (Thread-safe)
+// ==========================
+type InMemoryCache[T any] struct {
+	mu    sync.RWMutex
+	store map[string]item[T]
+}
+
+func NewInMemoryCache[T any]() *InMemoryCache[T] {
+	c := &InMemoryCache[T]{
+		store: make(map[string]item[T]),
+	}
+
+	// start background clean-up
+	go c.startCleanup()
+	return c
+}
+
+func (in *InMemoryCache[T]) Get(ctx context.Context, key string) (T, bool) {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+
+	it, ok := in.store[key]
+	if !ok {
+		var zero T
+		return zero, false
+	}
+
+	// check expiration
+	if !it.expiresAt.IsZero() && time.Now().After(it.expiresAt) {
+		var zero T
+		return zero, false
+	}
+
+	return it.value, true
+}
+
+func (in *InMemoryCache[T]) Set(ctx context.Context, key string, value T, ttl time.Duration) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	var exp time.Time
+	if ttl > 0 {
+		exp = time.Now().Add(ttl)
+	}
+	in.store[key] = item[T]{
+		value:     value,
+		expiresAt: exp,
+	}
+}
+
+func (in *InMemoryCache[T]) Delete(ctx context.Context, key string) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	delete(in.store, key)
+}
+
+func (in *InMemoryCache[T]) startCleanup() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		in.cleanup()
+	}
+}
+
+func (in *InMemoryCache[T]) cleanup() {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	now := time.Now()
+	for k, v := range in.store {
+		if !v.expiresAt.IsZero() && now.After(v.expiresAt) {
+			delete(in.store, k)
+		}
+	}
+}
+
+// ==========================
+// Decorator: Logging Layer
+// ==========================
+type LoggingCache[T any] struct {
+	next Cache[T]
+}
+
+func NewLoggingCache[T any](next Cache[T]) *LoggingCache[T] {
+	return &LoggingCache[T]{
+		next: next,
+	}
+}
+
+func (l *LoggingCache[T]) Get(ctx context.Context, key string) (T, bool) {
+	val, ok := l.next.Get(ctx, key)
+	fmt.Println("GET", key, "found:", ok)
+	return val, ok
+}
+func (l *LoggingCache[T]) Set(ctx context.Context, key string, value T, ttl time.Duration) {
+	fmt.Println("Set : ", key)
+	l.next.Set(ctx, key, value, ttl)
+}
+func (l *LoggingCache[T]) Delete(ctx context.Context, key string) {
+	fmt.Println("Delete : ", key)
+	l.next.Delete(ctx, key)
+}
+
+// ==========================
+// Example Domain Object
+// ==========================
+
+type User struct {
+	ID   int
+	Name string
+}
+
+func main() {
+	ctx := context.Background()
+
+	// create base cache
+	baseCache := NewInMemoryCache[User]()
+
+	// Add logging decorator
+	cache := NewLoggingCache[User](baseCache)
+
+	// set value
+	cache.Set(ctx, "user:1", User{ID: 1, Name: "Harshit"}, 3*time.Second)
+
+	// Get Value
+	user, ok := cache.Get(ctx, "user:1")
+	fmt.Println("User:", user, "Exists:", ok)
+
+	// Wait for expiration
+	time.Sleep(4 * time.Second)
+
+	// Try again
+	user, ok = cache.Get(ctx, "user:1")
+	fmt.Println("After TTL -> Exists:", ok)
+}

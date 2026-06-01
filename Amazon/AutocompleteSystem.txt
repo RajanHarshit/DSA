@@ -1,0 +1,252 @@
+package main
+
+import (
+	"sort"
+)
+
+// Trie Node
+type TrieNode struct {
+	children map[byte]*TrieNode
+	counts   map[string]int // sentence -> frequency
+}
+
+func newTrieNode() *TrieNode {
+	return &TrieNode{
+		children: make(map[byte]*TrieNode),
+		counts:   make(map[string]int),
+	}
+}
+
+// Autocomplete System
+type AutocompleteSystem struct {
+	root   *TrieNode
+	prefix string
+}
+
+// Constructor
+func Constructor(sentences []string, times []int) AutocompleteSystem {
+	root := newTrieNode()
+
+	for i := 0; i < len(sentences); i++ {
+		insert(root, sentences[i], times[i])
+	}
+
+	return AutocompleteSystem{
+		root:   root,
+		prefix: "",
+	}
+}
+
+// Insert sentence into Trie
+func insert(root *TrieNode, sentence string, time int) {
+	node := root
+
+	for i := 0; i < len(sentence); i++ {
+		c := sentence[i]
+
+		if _, ok := node.children[c]; !ok {
+			node.children[c] = newTrieNode()
+		}
+
+		node = node.children[c]
+		node.counts[sentence] += time
+	}
+}
+
+// Input function
+func (this *AutocompleteSystem) Input(c byte) []string {
+	// End of sentence
+	if c == '#' {
+		insert(this.root, this.prefix, 1)
+		this.prefix = ""
+		return []string{}
+	}
+
+	// Add character to prefix
+	this.prefix += string(c)
+
+	node := this.root
+
+	// Traverse Trie
+	for i := 0; i < len(this.prefix); i++ {
+		if _, ok := node.children[this.prefix[i]]; !ok {
+			return []string{}
+		}
+		node = node.children[this.prefix[i]]
+	}
+
+	// Collect results
+	type pair struct {
+		sentence string
+		count    int
+	}
+
+	var list []pair
+	for s, cnt := range node.counts {
+		list = append(list, pair{s, cnt})
+	}
+
+	// Sort by:
+	// 1. frequency DESC
+	// 2. lexicographically ASC
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].count == list[j].count {
+			return list[i].sentence < list[j].sentence
+		}
+		return list[i].count > list[j].count
+	})
+
+	// Take top 3
+	res := []string{}
+	for i := 0; i < len(list) && i < 3; i++ {
+		res = append(res, list[i].sentence)
+	}
+
+	return res
+}
+
+///////////////////////////// HEAP /////// APPROACH /////////////////
+package main
+
+import (
+	"container/heap"
+	"fmt"
+)
+
+type TrieNode struct {
+	children map[byte]*TrieNode
+	counts   map[string]int // sentence -> frequency
+}
+
+func newTrieNode() *TrieNode {
+	return &TrieNode{
+		children: make(map[byte]*TrieNode),
+		counts:   make(map[string]int),
+	}
+}
+
+// Autocomplete system
+type AutocompleteSystem struct {
+	root   *TrieNode
+	prefix string
+}
+
+func Constructor(sentences []string, times []int) AutocompleteSystem {
+	root := newTrieNode()
+	fmt.Println("root__", root)
+	for i := 0; i < len(sentences); i++ {
+		insert(root, sentences[i], times[i])
+	}
+	fmt.Println()
+	return AutocompleteSystem{
+		root:   root,
+		prefix: "",
+	}
+}
+
+func insert(root *TrieNode, sentence string, time int) {
+	node := root
+	fmt.Println("inser__node", node)
+	fmt.Println("sentence__", sentence)
+	for i := 0; i < len(sentence); i++ {
+		c := sentence[i]
+		if _, ok := node.children[c]; !ok {
+			node.children[c] = newTrieNode()
+		}
+		node = node.children[c]
+		node.counts[sentence] += time
+		fmt.Println("count against each char", node.counts[sentence])
+	}
+}
+
+func (this *AutocompleteSystem) Input(c byte) []string {
+	// 1. End of the sentence
+	if c == '#' {
+		insert(this.root, this.prefix, 1)
+		this.prefix = ""
+		return []string{}
+	}
+	// 2. Add character to the prefix
+	this.prefix += string(c)
+	fmt.Println("this.prefix___", this.prefix)
+	node := this.root
+	fmt.Println("node::", node)
+
+	// Traverse a Trie
+	for i := 0; i < len(this.prefix); i++ {
+		fmt.Println("@2", node.children[this.prefix[i]])
+		if _, ok := node.children[this.prefix[i]]; !ok {
+			return []string{}
+		}
+		node = node.children[this.prefix[i]]
+		fmt.Println("node__@@", node)
+	}
+	return SearchStr(node)
+}
+
+type Pair struct {
+	sentence string
+	count    int
+}
+type MinHeap []Pair
+
+func (h MinHeap) Len() int      { return len(h) }
+func (h MinHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h MinHeap) Less(i, j int) bool {
+	if h[i].count == h[j].count {
+		return h[i].sentence > h[j].sentence
+	}
+	return h[i].count < h[j].count
+}
+func (h *MinHeap) Push(x interface{}) {
+	*h = append(*h, x.(Pair))
+}
+
+func (h *MinHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[:n-1]
+	return item
+}
+func SearchStr(node *TrieNode) []string {
+	h := &MinHeap{}
+	heap.Init(h)
+	for s, cnt := range node.counts {
+		heap.Push(h, Pair{s, cnt})
+		if h.Len() > 3 {
+			heap.Pop(h)
+		}
+	}
+	res := make([]string, h.Len())
+	for i := len(res) - 1; i >= 0; i-- {
+		p := heap.Pop(h).(Pair)
+		res[i] = p.sentence
+	}
+	return res
+}
+
+func main() {
+	sentences := []string{
+		"i love you",
+		"island",
+		"ironman",
+		"i love leetcode",
+	}
+	times := []int{5, 3, 2, 2}
+	// sentences := []string{
+	// 	"i love you",
+	// }
+	// times := []int{5}
+
+	obj := Constructor(sentences, times)
+
+	// Simulate input
+	fmt.Println(obj.Input('i')) // ["i love you", "island", "i love leetcode"]
+
+	fmt.Println(obj.Input(' ')) // ["i love you", "i love leetcode"]
+
+	fmt.Println(obj.Input('a')) // []
+
+	fmt.Println(obj.Input('#')) // [] (sentence "i a" stored)
+}

@@ -1,0 +1,120 @@
+package main
+
+import (
+	"fmt"
+)
+
+type OrderStatus string
+
+const (
+	CREATED   OrderStatus = "CREATED"
+	CONFIRMED OrderStatus = "CONFIRMED"
+	CANCELLED OrderStatus = "CANCELLED"
+	FULFILLED OrderStatus = "FULFILLED"
+)
+
+type OrderItem struct {
+	ItemID   int
+	Quantity int
+	Price    int
+}
+type Order struct {
+	OrderID    int
+	CustomerID int
+	Items      []OrderItem
+	Status     OrderStatus
+}
+
+// Inventory management
+type InventoryService struct {
+	inventory map[int]int
+}
+
+func NewInventoryService() *InventoryService {
+	return &InventoryService{
+		inventory: make(map[int]int),
+	}
+}
+
+func (in *InventoryService) AddItem(itemId, quantity int) {
+	in.inventory[itemId] += quantity
+}
+func (in *InventoryService) CheckAvailability(itemId, quantity int) bool {
+	return in.inventory[itemId] >= quantity
+}
+func (in *InventoryService) Reserve(itemId, quantity int) bool {
+	if in.inventory[itemId] >= quantity {
+		in.inventory[itemId] -= quantity
+		return true
+	}
+	return false
+}
+func (in *InventoryService) Release(itemId, quantity int) {
+	in.inventory[itemId] += quantity
+}
+
+// order management
+type OrderService struct {
+	inventory *InventoryService
+	orders    map[int]*Order
+	nextID    int
+}
+
+func NewOrderService(inv *InventoryService) *OrderService {
+	return &OrderService{
+		inventory: inv,
+		orders:    make(map[int]*Order),
+		nextID:    1,
+	}
+}
+
+func (o *OrderService) CreateOrder(customerId int, items []OrderItem) (*Order, error) {
+	for _, item := range items {
+		if !o.inventory.CheckAvailability(item.ItemID, item.Quantity) {
+			return nil, fmt.Errorf("item %d not available : ", item.ItemID)
+		}
+		o.inventory.Reserve(item.ItemID, item.Quantity)
+	}
+
+	order := &Order{
+		OrderID:    o.nextID,
+		CustomerID: customerId,
+		Items:      items,
+		Status:     CREATED,
+	}
+	o.orders[o.nextID] = order
+	o.nextID++
+	return order, nil
+}
+
+func (o *OrderService) UpdateOrder(orderId int, status OrderStatus) {
+	order := o.orders[orderId]
+	if status == CANCELLED {
+		for _, item := range order.Items {
+			o.inventory.Release(item.ItemID, item.Quantity)
+		}
+	}
+	order.Status = status
+}
+func main() {
+	fmt.Println("Order Management System")
+	inventory := NewInventoryService()
+	orderService := NewOrderService(inventory)
+
+	inventory.AddItem(1, 10)
+	items := []OrderItem{
+		{
+			ItemID:   1,
+			Quantity: 2,
+			Price:    100,
+		},
+	}
+
+	order, _ := orderService.CreateOrder(101, items)
+
+	fmt.Println("Order created:", order)
+
+	orderService.UpdateOrder(order.OrderID, CONFIRMED)
+
+	fmt.Println("Order updated: ", order)
+}

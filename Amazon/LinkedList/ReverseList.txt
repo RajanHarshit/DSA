@@ -1,0 +1,100 @@
+package main
+import "fmt"
+
+type ListNode struct {
+	Val int
+	Next *ListNode
+}
+
+func printList(node *ListNode) {
+	for node != nil {
+		fmt.Print(node.Val, " -> ")
+		node = node.Next
+	}
+	fmt.Println("nil")
+}
+
+func reverseList(node *ListNode) *ListNode {
+	var prev *ListNode = nil
+	curr := node
+	for curr != nil {
+		nextTemp := curr.Next // store next
+		curr.Next = prev // reverse pointer
+		prev = curr //move prev
+		curr = nextTemp // move curr
+	}
+	return prev
+}
+
+func length(head *List) int {
+	count := 0
+	for head != nil {
+		count++
+		head = head.Next
+	}
+	return count
+}
+
+func middleOfList(head *List) *List {
+	slow, fast := head, head
+	for fast != nil && fast.Next != nil {
+		slow = slow.Next
+		fast = fast.Next.Next
+	}
+	return slow
+}
+
+func NthNodeFromEnd(head *List, n int) *List {
+	slow, fast := head, head
+
+	// move fast pointer n step ahead
+	for i := 0; i < n; i++ {
+		if fast == nil {
+			return nil
+		}
+		fast = fast.Next
+	}
+
+	for fast != nil {
+		slow = slow.Next
+		fast = fast.Next
+	}
+	return slow
+}
+
+func isLoop(head *List) bool {
+    if head == nil {
+        return false
+    }
+	slow, fast := head, head
+	for fast != nil && fast.Next != nil {
+		slow = slow.Next
+		fast = fast.Next.Next
+		if slow == fast {
+			return true
+		}
+	}
+	return false
+}
+
+// 1->2->3->4
+func main() {
+	head := &ListNode{1,nil}
+	head.Next = &ListNode{2,nil}
+	head.Next.Next = &ListNode{3, nil}
+	head.Next.Next.Next = &ListNode{4,nil}
+
+	fmt.Print("Original : ")
+	printList(head)
+
+	head = reverseList(head)
+
+	fmt.Print("Reversed : ")
+	printList(head)
+
+	fmt.Println("Length : ", length(head))
+	fmt.Println("middle : ", middleOfList(head).Val)
+
+	fmt.Println("NthNodeFromEnd : ", NthNodeFromEnd(head, 3).Val)
+	fmt.Println("IsLoop : ", isLoop(head))
+}

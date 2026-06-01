@@ -1,0 +1,61 @@
+package main
+
+import (
+	"fmt"
+	"sort"
+)
+
+type ExamTracker struct {
+	times  []int
+	prefix []int64
+}
+
+func Constructor() ExamTracker {
+	return ExamTracker{
+		times:  []int{},
+		prefix: []int64{},
+	}
+}
+
+func (e *ExamTracker) record(time int, score int) {
+	e.times = append(e.times, time)
+
+	if len(e.prefix) == 0 {
+		e.prefix = append(e.prefix, int64(score))
+	} else {
+		e.prefix = append(e.prefix, e.prefix[len(e.prefix)-1]+int64(score))
+	}
+}
+
+func (e *ExamTracker) totalScore(startTime int, endTime int) int64 {
+
+	// first index >= startTime
+	left := sort.SearchInts(e.times, startTime)
+
+	// first index > endTime
+	right := sort.Search(len(e.times), func(i int) bool {
+		return e.times[i] > endTime
+	}) - 1
+
+	if left > right {
+		return 0
+	}
+
+	if left == 0 {
+		return e.prefix[right]
+	}
+
+	return e.prefix[right] - e.prefix[left-1]
+}
+
+func main() {
+	obj := Constructor()
+
+	obj.record(2, 50)
+	obj.record(5, 40)
+	obj.record(8, 60)
+
+	fmt.Println(obj.totalScore(2, 5)) // 90
+	fmt.Println(obj.totalScore(5, 8)) // 100
+	fmt.Println(obj.totalScore(3, 4)) // 0
+}

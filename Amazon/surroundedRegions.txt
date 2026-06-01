@@ -1,0 +1,42 @@
+// Instead of searching all surrounded 0s, we need to search boundry zeros
+func solve(board [][]byte)  {
+    if len(board) == 0{
+        return
+    }
+    rows, cols := len(board), len(board[0])
+    var dfs func(int,int)
+    dfs = func(r,c int) {
+        if r<0 || c<0 || r>=rows || c>=cols || board[r][c] != 'O' {
+            return
+        }
+
+        board[r][c]='S'
+
+        //explore neighbours
+        dfs(r+1,c)
+        dfs(r-1,c)
+        dfs(r,c+1)
+        dfs(r, c-1)
+    }
+
+    // 1. Run DFS on boundry
+    for r:=0; r<rows; r++ {
+        dfs(r,0)
+        dfs(r,cols-1)
+    }
+    for c:=0; c<cols; c++ {
+        dfs(0,c)
+        dfs(rows-1, c)
+    }
+
+    // 2. Convert remaining 0->X and S->0
+    for r:=0; r<rows; r++ {
+        for c:=0; c<cols; c++ {
+            if board[r][c] == 'O' {
+                board[r][c]='X'
+            } else if board[r][c]=='S' {
+                board[r][c]='O'
+            }
+        }
+    }
+}

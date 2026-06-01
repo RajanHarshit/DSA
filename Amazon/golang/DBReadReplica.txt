@@ -1,0 +1,52 @@
+👉 Goal
+Some services → read-only DB
+Some services → write DB
+
+💡 Prod Insight
+Read replicas → UserReader
+Write DB → UserWriter
+Prevents accidental writes to replica
+
+package main
+
+import "fmt"
+
+// Full DB client
+type DB struct{}
+
+func (db *DB) GetUser(id int) string {
+	return fmt.Sprintf("User-%d", id)
+}
+func (db *DB) SaveUser(name string) {
+	fmt.Println("Saving User : ", name)
+}
+
+// read-only DB interface
+type UserReader interface {
+	GetUser(int) string
+}
+
+// write only interface
+type UserWriter interface {
+	SaveUser(string)
+}
+
+// Read Service
+type UserService struct {
+	reader UserReader
+}
+
+func NewUserService(ur UserReader) *UserService {
+	return &UserService{
+		reader: ur,
+	}
+}
+
+func (u *UserService) PrintUser(id int) {
+	fmt.Println("User : ", u.reader.GetUser(id))
+}
+func main() {
+	db := &DB{}
+	dbService := NewUserService(db)
+	dbService.PrintUser(1)
+}

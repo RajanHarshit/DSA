@@ -1,0 +1,73 @@
+brute force approach but it will fail at large data set 
+
+type TreeAncestor struct {
+    parent []int
+
+}
+
+
+func Constructor(n int, parent []int) TreeAncestor {
+    return TreeAncestor {
+        parent: parent,
+    }
+}
+
+
+func (this *TreeAncestor) GetKthAncestor(node int, k int) int {
+    for k > 0 && node != -1 {
+        node = this.parent[node]
+        k--
+    }
+    return node
+}
+
+//////////////////////////////////////////// OPTIMAL___APPROACH /////////////////////////////////////
+type TreeAncestor struct {
+    up [][]int
+    LOG int
+
+}
+
+
+func Constructor(n int, parent []int) TreeAncestor {
+    LOG := 17
+    up := make([][]int, n)
+    for i:=0; i<n; i++ {
+        up[i] = make([]int, LOG)
+        up[i][0] = parent[i]
+    }
+
+    for j:=1; j<LOG; j++ {
+        for i:=0; i<n; i++ {
+            if up[i][j-1] == -1 {
+                up[i][j] = -1
+            } else {
+                up[i][j] = up[up[i][j-1]][j-1]
+            }
+        }
+    }
+    return TreeAncestor {
+        up,LOG,
+    }
+}
+
+
+func (this *TreeAncestor) GetKthAncestor(node int, k int) int {
+    for i:=0; i<this.LOG; i++ {
+        // check - Does k contain the power 2^i in its binary representation?
+        if (k & (1<<i)) != 0 {
+            node = this.up[node][i]
+            if node == -1 {
+                return -1
+            }
+        }
+    }
+    return node
+}
+
+
+/**
+ * Your TreeAncestor object will be instantiated and called as such:
+ * obj := Constructor(n, parent);
+ * param_1 := obj.GetKthAncestor(node,k);
+ */

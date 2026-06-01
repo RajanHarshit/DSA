@@ -1,0 +1,10 @@
+
+Go vs Java — key differences at a glance
+Concept                                       Java                                    Go 
+Singleton safety                      volatile + double-checked lock                sync.Once
+Abstract product                     interface or abstract class                   interface
+Factory function name                create() / getInstance()                      New<Type>()
+Builder chaining                     returns this                                 returns *Builder
+Error handling in factory            throws exception                             returns (T, error)
+Clone interface                      implements Cloneable                     define Clone() *T explicitly
+Deep copy                            override clone()                         copy() for slices, manual for maps

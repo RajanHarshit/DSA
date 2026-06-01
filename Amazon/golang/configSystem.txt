@@ -1,0 +1,54 @@
+👉 Goal
+App code → read-only
+Admin tools → read + write
+
+💡 Prod Insight
+Microservices → only Get()
+Admin panel → Set()
+Prevents accidental writes in business logic
+
+package main
+import "fmt"
+type IntConfig struct {
+	value int
+}
+
+func (c *IntConfig) Get() int {
+	return c.value
+}
+func (c *IntConfig) Set(value int) {
+	c.value = value
+}
+
+// Read Only interface (used by service)
+type ConfigGetter interface {
+	Get() int
+}
+
+// Wrting value; Admin interface (used by ops tools)
+type ConfigSetter interface {
+	Set(int)
+}
+
+type Service struct {
+	threshold ConfigGetter
+}
+
+func NewService(cfg ConfigGetter) *Service {
+	return &Service{
+		threshold: cfg,
+	}
+}
+func (s *Service) Run() {
+	fmt.Println("Service threshold:", s.threshold.Get())
+}
+func main() {
+	cfg := &IntConfig{value: 10}
+	service := NewService(cfg)
+	service.Run()
+
+	// Admin uodates cfg
+	cfg.Set(20)
+	service.Run() // sees updated value
+
+}
